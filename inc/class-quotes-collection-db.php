@@ -375,102 +375,79 @@ class Quotes_Collection_DB {
 	 * @return string    The SQL condition
 	 */
 	private function frame_condition($args = array()) {
-		if(!$args) return "";
+		if (!$args) return "";
 
-		$condition = '';
+		$conditions = [];
+		$values = [];
 
-		if( isset($args['quote_id']) && is_numeric($args['quote_id']) ) {
-			$condition .= " `quote_id` = ".$args['quote_id'];
+		// Building conditions using prepared statement placeholders
+		if (isset($args['quote_id']) && is_numeric($args['quote_id'])) {
+			$conditions[] = "`quote_id` = %d";
+			$values[] = $args['quote_id'];
 		}
 
-		if( isset($args['exclude']) && is_numeric($args['exclude']) ) {
-			$condition .= " `quote_id` <> ".$args['exclude'];
+		if (isset($args['exclude']) && is_numeric($args['exclude'])) {
+			$conditions[] = "`quote_id` <> %d";
+			$values[] = $args['exclude'];
 		}
 
-		if( isset($args['splice']) && is_numeric($args['splice']) ) {
-			$condition .= " `quote_id` < ".$args['splice'];
+		if (isset($args['splice']) && is_numeric($args['splice'])) {
+			$conditions[] = "`quote_id` < %d";
+			$values[] = $args['splice'];
 		}
 
-		if( isset($args['author']) ) {
-			$condition .= " `author`='" . esc_sql( stripslashes( strip_tags ( $args['author'] ) ) ) . "'";
+		if (isset($args['author'])) {
+			$conditions[] = "`author` = %s";
+			$values[] = $args['author'];
 		}
-		if( isset($args['source']) ) {
-			if($condition) $condition .= " AND";
-			$condition .= " `source`='" . esc_sql( stripslashes( strip_tags ( $args['source'] ) ) ) . "'";
+
+		if (isset($args['source'])) {
+			$conditions[] = "`source` = %s";
+			$values[] = $args['source'];
 		}
-		if( isset($args['tags']) && is_string($args['tags']) && !empty($args['tags']) ) {
+
+		if (isset($args['tags']) && is_string($args['tags']) && !empty($args['tags'])) {
 			$taglist = explode(',', html_entity_decode($args['tags']));
-			$tag_condition = "";
-			foreach($taglist as $tag) {
-						$tag = $this->db->esc_like( strip_tags( trim( $tag ) ) );
-				if($tag_condition) $tag_condition .= " OR ";
-				$tag_condition .=
-					"tags = '{$tag}' "
-					."OR tags LIKE '{$tag},%' "
-					."OR tags LIKE '%,{$tag},%' "
-					."OR tags LIKE '%,{$tag}'";
+			$tag_conditions = [];
+			foreach ($taglist as $tag) {
+				$tag = trim($tag);
+				$tag_conditions[] = $this->db->prepare("(`tags` LIKE %s OR `tags` LIKE %s OR `tags` LIKE %s OR `tags` LIKE %s)", $tag, "$tag,%", "%,$tag,%", "%,$tag");
 			}
-			if($tag_condition) {
-				if($condition) $condition .= " AND";
-				$condition .= " ({$tag_condition})";
+			if (!empty($tag_conditions)) {
+				$conditions[] = "(" . implode(" OR ", $tag_conditions) . ")";
 			}
 		}
-		if( isset($args['search']) && is_string($args['search']) && !empty($args['search']) ) {
-			$search_query = $this->db->esc_like( strip_tags( trim( $args['search'] ) ) );
 
-			$search_condition =
-				"quote = '{$search_query}' "
-				."OR quote LIKE '{$search_query}%' "
-				."OR quote LIKE '%{$search_query}%' "
-				."OR quote LIKE '%{$search_query}' "
-				."OR author = '{$search_query}' "
-				."OR author LIKE '{$search_query},%' "
-				."OR author LIKE '%{$search_query}%' "
-				."OR author LIKE '%{$search_query}' "
-				."OR source = '{$search_query}' "
-				."OR source LIKE '{$search_query}%' "
-				."OR source LIKE '%{$search_query}%' "
-				."OR source LIKE '%{$search_query}' "
-				."OR tags = '{$search_query}' "
-				."OR tags LIKE '{$search_query},%' "
-				."OR tags LIKE '%,{$search_query},%' "
-				."OR tags LIKE '%,{$search_query}'";
-
-			if($condition) $condition .= " AND";
-			$condition .= " ({$search_condition})";
+		if (isset($args['public']) && ($args['public'] === 'yes' || $args['public'] === 'no')) {
+			$conditions[] = "`public` = %s";
+			$values[] = $args['public'];
 		}
 
-		if(isset($args['char_limit']) && is_numeric($args['char_limit']) && $args['char_limit'] > 0) {
-			if($condition) $condition .= " AND";
-			$condition .= " CHAR_LENGTH(`quote`) <= ".$args['char_limit'];
+		// Handle char_limit, ensure it's a number and add to conditions
+		if (isset($args['char_limit']) && is_numeric($args['char_limit']) && $args['char_limit'] > 0) {
+			$conditions[] = "CHAR_LENGTH(`quote`) <= %d";
+			$values[] = $args['char_limit'];
 		}
 
-		if(isset($args['public']) && ( $args['public'] == 'yes' || $args['public'] == 'no' ) ) {
-			if($condition) $condition .= " AND";
-			$condition .= " `public` = '". esc_sql($args['public'])."'";
+		// Combine all conditions into a WHERE clause
+		$where_clause = $conditions ? " WHERE " . implode(" AND ", $conditions) : "";
+
+		// Sorting and pagination
+		$orderby = isset($args['orderby']) && in_array($args['orderby'], ['quote_id', 'author', 'source', 'time_added', 'random']) ? $args['orderby'] : 'quote_id';
+		$order = isset($args['order']) && strtolower($args['order']) === 'desc' ? 'DESC' : 'ASC';
+		$orderby_sql = $orderby === 'random' ? "RAND()" : "`$orderby` $order";
+
+		$limit_sql = "";
+		if (isset($args['num_quotes']) && is_numeric($args['num_quotes'])) {
+			$start = isset($args['start']) && is_numeric($args['start']) ? intval($args['start']) : 0;
+			$limit_sql = " LIMIT $start, " . intval($args['num_quotes']);
 		}
 
-		if($condition)
-			$condition = " WHERE".$condition;
+		// Final SQL
+		$final_sql = "SELECT `quote_id`, `quote`, `author`, `source`, `tags`, `public`, `time_added` FROM " . $this->table_name . $where_clause . " ORDER BY " . $orderby_sql . $limit_sql;
 
-		if(isset($args['orderby']) && $args['orderby']) {
-			if($args['orderby'] == "random")
-				$condition .= " ORDER BY RAND(UNIX_TIMESTAMP(NOW()))";
-			else if(in_array($args['orderby'], array('quote_id', 'quote', 'author', 'source', 'time_added'))) {
-				$condition .= " ORDER BY `".$args['orderby']."`";
-				if( isset($args['order']) && ($args['order'] == 'DESC' || $args['order'] == 'desc') )
-					$condition .= " DESC";
-			}
-		}
-		if(isset($args['num_quotes']) && is_numeric($args['num_quotes'])) {
-			if(isset($args['start']) && is_numeric($args['start'])) {
-				$condition .= " LIMIT ".$args['start'].", ".$args['num_quotes']	;
-			}
-			else
-			$condition .= " LIMIT ".$args['num_quotes'];
-		}
-		return $condition;
-
+		// Prepare the SQL statement with placeholders
+		return $this->db->prepare($final_sql, $values);
 	}
 
 
