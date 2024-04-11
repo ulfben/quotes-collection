@@ -221,9 +221,8 @@ class Quotes_Collection_DB {
 	 */
 	public function delete_quote($quote_id) {
 		if(is_numeric($quote_id)) {
-				$sql = "DELETE from " . $this->table_name .
-				" WHERE quote_id = " . $quote_id;
-			return $this->db->query($sql);
+			$sql = $this->db->prepare("DELETE FROM " . $this->table_name . " WHERE quote_id = %d", $quote_id);
+			return $this->db->query($sql);			
 		}
 		else return 0;
 	}
@@ -235,16 +234,16 @@ class Quotes_Collection_DB {
 	 * @param array $quote_ids an array of IDs of the entries to be deleted
 	 */
 	public function delete_quotes($quote_ids) {
-		if(!$quote_ids)
+		if(!$quote_ids){
 			return 0;
-
-		foreach( $quote_ids as $quote_id ) {
-			if(! is_numeric($quote_id) )
-				return 0;
 		}
-
-		$sql = "DELETE FROM ".$this->table_name
-			."WHERE quote_id IN (".implode(', ', $quote_ids).")";
+		foreach( $quote_ids as $quote_id ) {
+			if(!is_numeric($quote_id) )
+				return 0;
+		}		
+		$placeholders = array_fill(0, count($quote_ids), '%d');
+		$placeholders_string = implode(', ', $placeholders);
+		$sql = $this->db->prepare("DELETE FROM " . $this->table_name . " WHERE quote_id IN ($placeholders_string)", $quote_ids);
 		return $this->db->query($sql);
 	}
 
@@ -262,10 +261,9 @@ class Quotes_Collection_DB {
 				return -1;
 			}
 		}
-		$sql = "UPDATE ".$this->table_name
-			."SET public = '".$visibility."',
-			time_updated = NOW()
-			WHERE quote_id IN (".implode(', ', $quote_ids).")";
+		$placeholders = array_fill(0, count($quote_ids), '%d');
+		$ids_format = implode(', ', $placeholders);
+		$sql = $this->db->prepare("UPDATE " . $this->table_name . " SET public = %s, time_updated = NOW() WHERE quote_id IN ($ids_format)", array_merge(array($visibility), $quote_ids));
 		return $this->db->query($sql);
 	}
 
