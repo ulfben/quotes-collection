@@ -284,18 +284,14 @@ class Quotes_Collection_DB {
 		$count = $this->db->get_var($sql);
 		return $count;
 	}
-
-
+	
 	public static function install_db() {
+		if(!current_user_can('activate_plugins')) {
+			return;
+		}
 
-		if(
-			( ! current_user_can( 'activate_plugins' ) )
-			|| (
-				$options = get_option('quotescollection')
-				&& isset( $options['db_version'] )
-				&& self::PLUGIN_DB_VERSION == $options['db_version']
-			)
-		) {
+		$options = get_option('quotescollection');
+		if($options !== false && isset($options['db_version']) && self::PLUGIN_DB_VERSION == $options['db_version']) {
 			return;
 		}
 
@@ -306,7 +302,7 @@ class Quotes_Collection_DB {
 		if(!defined('DB_CHARSET') || !($db_charset = DB_CHARSET))
 			$db_charset = 'utf8';
 		$db_charset = "CHARACTER SET ".$db_charset;
-		if(defined('DB_COLLATE') && $db_collate = DB_COLLATE)
+		if(defined('DB_COLLATE') && $db_collate = DB_COLLATE) 
 			$db_collate = "COLLATE ".$db_collate;
 
 
@@ -342,11 +338,15 @@ class Quotes_Collection_DB {
 			) {$db_charset} {$db_collate};";
 			$results = $wpdb->query( $sql );
 		}
-
+				
+		// Ensure $options is an array before modifying it
+		if (!is_array($options)) {
+			$options = [];
+		} 
 		$options['db_version'] = self::PLUGIN_DB_VERSION;
 		update_option('quotescollection', $options);
-
 	}
+
 
 
 	public static function uninstall_db() {

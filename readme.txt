@@ -73,6 +73,10 @@ You can translate the plugin in your language at [translate.wordpress.org](https
 
 ==Changelog==
 
+* **2024-04-11: Version 2.5.3**
+	* Fixed WP deprecated hook 'block_categories'
+	* Fixed PHP error on plugin activation, "Automatic conversion of false to array is deprecated"
+
 * **2019-03-06: Version 2.5.2**
 	* Fixed issues with auto_refresh in shortcode.
 
