@@ -36,7 +36,8 @@ class Quotes_Collection_Widget extends WP_Widget {
 	 */
 	public function widget( $args, $instance ) {
 		global $quotescollection;
-
+		// Ensure that 'widget_id' is defined in $args
+		$widget_id = isset($args['widget_id']) ? $args['widget_id'] : 'default_widget_id';
 		if( $instance ) {
 			$options['title'] = isset($instance['title'])?$instance['title']:__('Random Quote', 'quotes-collection');
 			$options['show_author'] = isset($instance['show_author'])?$instance['show_author']:1;
@@ -57,7 +58,7 @@ class Quotes_Collection_Widget extends WP_Widget {
 
 		$options['order'] = 'DESC';
 		$options['echo'] = 0;
-		$options['instance'] = 'w_'.str_replace('-', '_', $args['widget_id']);
+		$options['instance'] = 'w_'.str_replace('-', '_', $widget_id);
 
 		if($quote = $quotescollection->quote($options)) {
 			extract( $args );
