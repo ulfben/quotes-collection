@@ -23,7 +23,7 @@ class Quotes_Collection_Widget extends WP_Widget {
 	 * Register the widget. Should be hooked to 'widgets_init'.
 	 */
 	public static function register() {
-		register_widget( get_class() );
+		register_widget( 'Quotes_Collection_Widget' );
 	}
 
 	/**
