@@ -1,3 +1,4 @@
+/* Modified for ulfben's fork on 2026-10-20; see the changelog in readme.txt. */
 ( function( wp ) {
 	/**
 	 * Registers a new block provided a unique name and an object defining its behavior.
@@ -15,16 +16,16 @@
 	 */
 	var __ = wp.i18n.__;
 
-	var AlignmentToolbar = wp.editor.AlignmentToolbar;
-	var ContrastChecker = wp.editor.ContrastChecker;
-	var InspectorControls = wp.editor.InspectorControls;
-	var PanelColorSettings = wp.editor.PanelColorSettings;
+	var AlignmentToolbar = wp.blockEditor.AlignmentToolbar;
+	var ContrastChecker = wp.blockEditor.ContrastChecker;
+	var InspectorControls = wp.blockEditor.InspectorControls;
+	var PanelColorSettings = wp.blockEditor.PanelColorSettings;
 
 	var CheckboxControl = wp.components.CheckboxControl;
 	var PanelBody = wp.components.PanelBody;
 	var PanelRow = wp.components.PanelRow;
 	var RangeControl = wp.components.RangeControl;
-	var ServerSideRender = wp.components.ServerSideRender;
+	var ServerSideRender = (wp.serverSideRender.default || wp.serverSideRender);
 	var TextControl = wp.components.TextControl;
 	var ToggleControl = wp.components.ToggleControl;
 
@@ -33,6 +34,7 @@
 	 * @see https://wordpress.org/gutenberg/handbook/block-api/
 	 */
 	registerBlockType( 'quotes-collection/random-quote', {
+		apiVersion: 3,
 		title: __( 'Random Quote', 'quotes-collection' ),
 		icon: 'testimonial',
 		category: 'quotes-collection',
@@ -46,7 +48,7 @@
 		 * @return {Element}       Element to render.
 		 */
 		edit: function( props ) {
-			return [
+			return el('div', wp.blockEditor.useBlockProps(), [
 				// onClick listener to ensure the links inside block don't misbehave
 				el('div', { onClick: (e) => { e.preventDefault(); } },
 					/**
@@ -64,6 +66,15 @@
 
 				// InspectorControls lets you add controls to the Block sidebar
 				el( InspectorControls, {},
+
+					el( PanelBody, { title: __('Daily Quote', 'quotes-collection') },
+						el( ToggleControl, {
+							label: __('Daily quote', 'quotes-collection'),
+							help: __('Rotate once per day in the site timezone. Disables refresh.', 'quotes-collection'),
+							checked: props.attributes.daily,
+							onChange: (value) => { props.setAttributes({daily: value}); },
+						}),
+					),
 
 					el( PanelColorSettings, {
 							title: __('Presentation', 'quotes-collection'),
@@ -126,12 +137,12 @@
 
 					el( PanelBody, { title: __('Content Settings', 'quotes-collection'), initialOpen: false },
 						el( CheckboxControl, {
-							label: __('Show Author'),
+							label: __('Show Author', 'quotes-collection'),
 							checked: props.attributes.showAuthor,
 							onChange: (state) => { props.setAttributes( { showAuthor: state } ); },
 						} ),
 						el( CheckboxControl, {
-							label: __('Show Source'),
+							label: __('Show Source', 'quotes-collection'),
 							checked: props.attributes.showSource,
 							onChange: (state) => { props.setAttributes( { showSource: state } ); },
 						} ),
@@ -161,16 +172,19 @@
 					el( PanelBody, { title: __('Refresh Settings', 'quotes-collection'), initialOpen: false },
 						el( ToggleControl, {
 							label: __('Random Refresh', 'quotes-collection'),
+							disabled: props.attributes.daily,
 							checked: props.attributes.randomRefresh,
 							onChange: ( state ) => { props.setAttributes( { randomRefresh: state } ); },
 						} ),
 						el( ToggleControl, {
 							label: __('Auto Refresh', 'quotes-collection'),
+							disabled: props.attributes.daily,
 							checked: props.attributes.autoRefresh,
 							onChange: ( state ) => { props.setAttributes( { autoRefresh: state } ); },
 						} ),
 						el( RangeControl, {
 							label: __('Refresh Interval', 'quotes-collection'),
+							disabled: props.attributes.daily,
 							help: __('For auto refresh. In seconds.', 'quotes-collection'),
 							min: 3,
 							max: 60,
@@ -189,7 +203,7 @@
 				), // </InspectorControls>
 
 
-			];
+			]);
 		},
 
 		/**

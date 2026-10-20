@@ -1,3 +1,4 @@
+/* Modified for ulfben's fork on 2026-10-20; see the changelog in readme.txt. */
 ( function( wp ) {
 	/**
 	 * Registers a new block provided a unique name and an object defining its behavior.
@@ -15,17 +16,17 @@
 	 */
 	var __ = wp.i18n.__;
 
-	var AlignmentToolbar = wp.editor.AlignmentToolbar;
-	var ContrastChecker = wp.editor.ContrastChecker;
-	var InspectorControls = wp.editor.InspectorControls;
-	var PanelColorSettings = wp.editor.PanelColorSettings;
+	var AlignmentToolbar = wp.blockEditor.AlignmentToolbar;
+	var ContrastChecker = wp.blockEditor.ContrastChecker;
+	var InspectorControls = wp.blockEditor.InspectorControls;
+	var PanelColorSettings = wp.blockEditor.PanelColorSettings;
 
 	var CheckboxControl = wp.components.CheckboxControl;
 	var PanelBody = wp.components.PanelBody;
 	var PanelRow = wp.components.PanelRow;
 	var RadioControl = wp.components.RadioControl;
 	var SelectControl = wp.components.SelectControl;
-	var ServerSideRender = wp.components.ServerSideRender;
+	var ServerSideRender = (wp.serverSideRender.default || wp.serverSideRender);
 	var TextControl = wp.components.TextControl;
 	var ToggleControl = wp.components.ToggleControl;
 
@@ -35,6 +36,7 @@
 	 * @see https://wordpress.org/gutenberg/handbook/block-api/
 	 */
 	registerBlockType( 'quotes-collection/quotes', {
+		apiVersion: 3,
 		title: __( 'Quotes', 'quotes-collection' ),
 		icon: 'testimonial',
 		category: 'quotes-collection',
@@ -45,6 +47,13 @@
 					type: 'shortcode',
 					tag: 'quotcoll',
 					attributes: {
+						daily: {
+							type: 'boolean',
+							shortcode: function( _ref ) {
+								return ['true', '1', true, 1].includes(_ref.named.daily)
+									|| ['true', '1', true, 1].includes(_ref.named.todays_quote);
+							}
+						},
 						author: {
 							type: 'string',
 							shortcode: function( _ref ) {
@@ -64,9 +73,9 @@
 						tags: {
 							type: 'string',
 							shortcode: function( _ref ) {
-								if( _ref.named.source === undefined )
+								if( _ref.named.tags === undefined )
 									return;
-								return _ref.named.source;
+								return _ref.named.tags;
 							}
 						},
 						orderby: {
@@ -88,7 +97,8 @@
 						paging: {
 							type: 'boolean',
 							shortcode: function( _ref ) {
-								if( (paging = _ref.named.paging) === undefined )
+								var paging = _ref.named.paging;
+								if( paging === undefined )
 									return;
 								else if( !paging || paging == "0" || paging == "false" )
 									return false;
@@ -114,7 +124,8 @@
 						showAuthor: {
 							type: 'boolean',
 							shortcode: function( _ref ) {
-								if( (show_author = _ref.named.show_author) === undefined )
+								var show_author = _ref.named.show_author;
+								if( show_author === undefined )
 									return;
 								else if( !show_author || show_author == "0" || show_author == "false" )
 									return false;
@@ -124,7 +135,8 @@
 						showSource: {
 							type: 'boolean',
 							shortcode: function( _ref ) {
-								if( (show_source = _ref.named.show_source) === undefined )
+								var show_source = _ref.named.show_source;
+								if( show_source === undefined )
 									return;
 								else if( !show_source || show_source == "0" || show_source == "false" )
 									return false;
@@ -146,7 +158,7 @@
 		 * @return {Element}       Element to render.
 		 */
 		edit: function( props ) {
-			return [
+			return el('div', wp.blockEditor.useBlockProps(), [
 				// onClick listener to ensure the links inside block don't misbehave
 				el('div', { onClick: (e) => { e.preventDefault(); } },
 					/**
@@ -164,6 +176,15 @@
 
 				// InspectorControls lets you add controls to the Block sidebar
 				el( InspectorControls, {},
+
+					el( PanelBody, { title: __('Daily Quote', 'quotes-collection') },
+						el( ToggleControl, {
+							label: __('Daily quote', 'quotes-collection'),
+							help: __('Rotate once per day in the site timezone. Overrides sorting, limits and pagination.', 'quotes-collection'),
+							checked: props.attributes.daily,
+							onChange: (value) => { props.setAttributes({daily: value}); },
+						}),
+					),
 
 					el( PanelColorSettings, {
 							title: __('Presentation', 'quotes-collection'),
@@ -293,7 +314,7 @@
 					), // </PanelBody>
 
 				), // </InspectorControls>
-			]; // return
+			]);
 		},
 
 		/**

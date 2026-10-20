@@ -1,11 +1,17 @@
 <?php
 /**
+ * Modified for ulfben's fork on 2026-10-20; see the changelog in readme.txt.
+ *
  * Functions to register client-side assets (scripts and stylesheets) for the
  * Gutenberg block.
  *
  * @package quotes-collection
  * @since 2.5
  */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 /**
  * Registers all block assets so that they can be enqueued through Gutenberg in
@@ -18,7 +24,7 @@ function quotescollection_block_random_quote_init() {
 	if ( ! function_exists( 'register_block_type' ) ) {
 		return;
 	}
-	$dir = dirname( __FILE__ );
+	$dir = __DIR__;
 
 	$index_js = 'index.js';
 	wp_register_script(
@@ -29,11 +35,13 @@ function quotescollection_block_random_quote_init() {
 			'wp-i18n',
 			'wp-element',
 			'wp-components',
-			'wp-editor',
+			'wp-block-editor',
+			'wp-server-side-render',
 		),
-		filemtime( "$dir/$index_js" )
+		filemtime( "$dir/$index_js" ),
+		true
 	);
-	wp_set_script_translations('quotescollection-block-random-quote-editor', 'quotes-collection');
+	wp_set_script_translations( 'quotescollection-block-random-quote-editor', 'quotes-collection' );
 
 	$style_css = 'style.css';
 	wp_register_style(
@@ -43,29 +51,7 @@ function quotescollection_block_random_quote_init() {
 		filemtime( "$dir/$style_css" )
 	);
 
-	register_block_type( 'quotes-collection/random-quote', array(
-		'editor_script' => 'quotescollection-block-random-quote-editor',
-		'style'         => 'quotescollection-block-random-quote',
-		'render_callback' => 'quotescollection_block_random_quote_render',
-		'attributes' =>
-			array(
-				'showAuthor' => array( 'type' => 'boolean', 'default' => true ),
-				'showSource' => array( 'type' => 'boolean', 'default' => true ),
-				'randomRefresh' => array( 'type' => 'boolean', 'default' => true ),
-				'autoRefresh' => array( 'type' => 'boolean', 'default' => true ),
-				'refreshInterval' => array( 'type' => 'number', 'default' => 5 ),
-				'charLimit' => array( 'type' => 'number', 'default' => 500 ),
-				'tags' => array( 'type' => 'string' ),
-				'backgroundColor' => array( 'type' => 'string', 'default' => '#f4f4f4' ),
-				'textColor' => array( 'type' => 'string', 'default' => '#444' ),
-				'textAlign' => array( 'type' => 'string', 'default' => 'left' ),
-				'attributionAlign' => array( 'type' => 'string', 'default' => 'right' ),
-				'fixedHeight' => array( 'type' => 'boolean', 'default' => false),
-				'height' => array( 'type' => 'number', 'default' => 200 ),
-				'className' => array( 'type' => 'string' ),
-				'editor_render' => array( 'type' => 'boolean', 'default' => is_admin())
-			),
-	) );
+	register_block_type( __DIR__, array( 'render_callback' => 'quotescollection_block_random_quote_render' ) );
 }
 add_action( 'init', 'quotescollection_block_random_quote_init' );
 
@@ -75,83 +61,95 @@ add_action( 'init', 'quotescollection_block_random_quote_init' );
  * @param array $atts The attributes that were set on the block.
  */
 function quotescollection_block_random_quote_render( $atts = array() ) {
-	$block_class = 'wp-block-quotes-collection-random-quote';
-	$block_class .= isset( $atts['className'] ) && $atts['className'] ? ' '.$atts['className'] : '';
-	$block_style = "";
-	$blockquote_style = "";
-	$attribution_style = "";
-	$nav_next = "";
+	$atts              = wp_parse_args(
+		$atts,
+		array(
+			'daily'            => false,
+			'showAuthor'       => true,
+			'showSource'       => true,
+			'randomRefresh'    => true,
+			'autoRefresh'      => true,
+			'charLimit'        => 500,
+			'backgroundColor'  => '#f4f4f4',
+			'textColor'        => '#444',
+			'textAlign'        => 'left',
+			'attributionAlign' => 'right',
+			'fixedHeight'      => false,
+			'height'           => 200,
+			'editor_render'    => false,
+		)
+	);
+	$block_class       = 'wp-block-quotes-collection-random-quote';
+	$block_class      .= isset( $atts['className'] ) && $atts['className'] ? ' ' . $atts['className'] : '';
+	$block_style       = '';
+	$blockquote_style  = '';
+	$attribution_style = '';
+	$nav_next          = '';
 
-	if( $atts['showAuthor'] == false ) {
+	if ( $atts['showAuthor'] == false ) {
 		$atts['show_author'] = 0;
 	}
 
-	if( $atts['showSource'] == false ) {
+	if ( $atts['showSource'] == false ) {
 		$atts['show_source'] = 0;
 	}
 
-	if( $atts['randomRefresh'] == false ) {
+	if ( $atts['randomRefresh'] == false ) {
 		$atts['random'] = 0;
 	}
 
-	if( isset($atts['autoRefresh']) && $atts['autoRefresh'] ){
-		if( !isset($atts['refreshInterval'] )
-			|| !is_numeric($atts['refreshInterval'])
-			|| !$atts['refreshInterval']
+	if ( ! $atts['daily'] && isset( $atts['autoRefresh'] ) && $atts['autoRefresh'] ) {
+		if ( ! isset( $atts['refreshInterval'] )
+			|| ! is_numeric( $atts['refreshInterval'] )
+			|| ! $atts['refreshInterval']
 		) {
 			$atts['auto_refresh'] = 5;
 		} else {
 			$atts['auto_refresh'] = $atts['refreshInterval'];
 		}
-	} else {
-		if( $atts['editor_render'] ) {
-			$refresh_link_text = __("Next quote &raquo;", 'quotes-collection');
-			if( $options = get_option( 'quotescollection' ) ) {
-				if( isset($options['refresh_link_text']) && $options['refresh_link_text'] ) {
-					$refresh_link_text = html_entity_decode( $options['refresh_link_text'] );
-				}
+	} elseif ( ! $atts['daily'] && $atts['editor_render'] ) {
+			$refresh_link_text = __( 'Next quote &raquo;', 'quotes-collection' );
+		if ( $options = get_option( 'quotescollection' ) ) {
+			if ( isset( $options['refresh_link_text'] ) && $options['refresh_link_text'] ) {
+				$refresh_link_text = html_entity_decode( $options['refresh_link_text'] );
 			}
-			$nav_next = '<div class="navigation"><div class="nav-next"><a class="next-quote-link" style="cursor:pointer;">' . $refresh_link_text . '</a></div></div>';
 		}
+			$nav_next = '<div class="navigation"><div class="nav-next"><a class="next-quote-link" style="cursor:pointer;">' . esc_html( $refresh_link_text ) . '</a></div></div>';
 	}
 
-	if( is_numeric( $atts['charLimit'] ) && $atts['charLimit'] > 0 ) {
+	if ( is_numeric( $atts['charLimit'] ) && $atts['charLimit'] > 0 ) {
 		$atts['char_limit'] = $atts['charLimit'];
 	}
 
-
-	if( $atts['backgroundColor']
+	if ( $atts['backgroundColor']
 		&& ( $background_color = sanitize_hex_color( $atts['backgroundColor'] ) )
 	) {
-		$block_style .= 'background-color:'.$background_color.';';
-		$blockquote_style .= 'background-color:'.$background_color.';';
+		$block_style      .= 'background-color:' . $background_color . ';';
+		$blockquote_style .= 'background-color:' . $background_color . ';';
 	}
 
-	if( $atts['textColor']
+	if ( $atts['textColor']
 		&& ( $text_color = sanitize_hex_color( $atts['textColor'] ) )
 	) {
-		$block_style .= 'color:'.$text_color.';';
-		$blockquote_style .= 'color:'.$text_color.';';
+		$block_style      .= 'color:' . $text_color . ';';
+		$blockquote_style .= 'color:' . $text_color . ';';
 	}
 
-	if( $atts['textAlign']
-		&& ( in_array ( $atts['textAlign'], array( 'left', 'right', 'center' ) ) )
-	)
-	{
+	if ( $atts['textAlign']
+		&& ( in_array( $atts['textAlign'], array( 'left', 'right', 'center' ), true ) )
+	) {
 		$block_style .= 'text-align:' . $atts['textAlign'] . ';';
 	}
 
-	if( $atts['attributionAlign']
-		&& ( in_array ( $atts['attributionAlign'], array( 'left', 'right', 'center' ) ) )
-	)
-	{
+	if ( $atts['attributionAlign']
+		&& ( in_array( $atts['attributionAlign'], array( 'left', 'right', 'center' ), true ) )
+	) {
 		$attribution_style .= 'text-align:' . $atts['attributionAlign'] . ';';
 	}
 
-	if( $atts['fixedHeight'] && is_numeric( $atts['height'] ) ) {
+	if ( $atts['fixedHeight'] && is_numeric( $atts['height'] ) ) {
 		$block_style .= 'height:' . $atts['height'] . 'px; overflow: hidden;';
 	}
-
 
 	$atts['echo'] = 0;
 
@@ -169,25 +167,22 @@ function quotescollection_block_random_quote_render( $atts = array() ) {
 		$atts['className']
 	);
 
-	if( $blockquote_style ) {
-		$blockquote_style = ' style="'.$blockquote_style.'"';
+	if ( $blockquote_style ) {
+		$blockquote_style = ' style="' . $blockquote_style . '"';
 	}
-	if( $attribution_style ) {
-		$attribution_style = ' style="'.$attribution_style.'"';
+	if ( $attribution_style ) {
+		$attribution_style = ' style="' . $attribution_style . '"';
 	}
-	$atts['before'] = '<blockquote class="quotescollection-quote"' . $blockquote_style.'>';
-	$atts['after'] = '</blockquote>';
+	$atts['before']             = '<blockquote class="quotescollection-quote"' . $blockquote_style . '>';
+	$atts['after']              = '</blockquote>';
 	$atts['before_attribution'] = '<footer class="attribution"' . $attribution_style . '>&mdash;&nbsp;';
-	$atts['after_attribution'] = '</footer>';
+	$atts['after_attribution']  = '</footer>';
 
-	if( $block_style ) {
-		$block_style = ' style="'.$block_style.'"';
+	if ( $block_style ) {
+		$block_style = ' style="' . $block_style . '"';
 	}
 
-
-	return
-		'<div class="' . $block_class . '"' . $block_style.'">'.
-		quotescollection_quote( $atts ).$nav_next.
+	return '<div class="' . esc_attr( $block_class ) . '"' . $block_style . '">' .
+		quotescollection_quote( $atts ) . $nav_next .
 		'</div>';
-
 }

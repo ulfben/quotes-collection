@@ -1,0 +1,74 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "quotes-collection/quotes",
+    "title": "Quotes",
+    "category": "quotes-collection",
+    "icon": "testimonial",
+    "textdomain": "quotes-collection",
+    "editorScript": "quotescollection-block-quotes-editor",
+    "style": "quotescollection-block-quotes",
+    "attributes": {
+        "daily": {
+            "type": "boolean",
+            "default": false
+        },
+        "author": {
+            "type": "string"
+        },
+        "source": {
+            "type": "string"
+        },
+        "tags": {
+            "type": "string"
+        },
+        "orderby": {
+            "type": "string"
+        },
+        "order": {
+            "type": "string",
+            "default": "ASC"
+        },
+        "paging": {
+            "type": "boolean",
+            "default": false
+        },
+        "limit_per_page": {
+            "type": "number",
+            "default": 10
+        },
+        "limit": {
+            "type": "number"
+        },
+        "backgroundColor": {
+            "type": "string",
+            "default": "#f4f4f4"
+        },
+        "textColor": {
+            "type": "string",
+            "default": "#444"
+        },
+        "textAlign": {
+            "type": "string",
+            "default": "left"
+        },
+        "attributionAlign": {
+            "type": "string",
+            "default": "right"
+        },
+        "showAuthor": {
+            "type": "boolean",
+            "default": true
+        },
+        "showSource": {
+            "type": "boolean",
+            "default": true
+        },
+        "className": {
+            "type": "string"
+        },
+        "style": {
+            "type": "object"
+        }
+    }
+}
